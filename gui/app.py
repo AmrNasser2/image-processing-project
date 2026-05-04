@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 from core import filters
 from core.histogram import local_histogram_equalization
 from core.image_io import load_image, save_image
-from core.interpolation import resize, rotate, shear
+from core.interpolation import resize
 from core.pipeline import ImagePipeline
 from core.utils import display_ready
 
@@ -96,7 +96,6 @@ class WorkbenchApp(tk.Tk):
         tabs.pack(fill="both", expand=True, pady=(8, 0))
         image_tab = self._scrollable_tab(tabs, "Image")
         filters_tab = self._scrollable_tab(tabs, "Filters")
-        transforms_tab = self._scrollable_tab(tabs, "Transforms")
         info_tab = self._scrollable_tab(tabs, "Info")
 
         viewer_wrap = ttk.Frame(self, padding=(12, 12, 12, 8))
@@ -157,16 +156,6 @@ class WorkbenchApp(tk.Tk):
         self.block_size = tk.StringVar(value="8")
         self._labeled_entry(hist_frame, "Local block size", self.block_size)
         ttk.Button(hist_frame, text="Local Equalization", command=self.apply_local_equalization).pack(fill="x", pady=(8, 0))
-
-        transform_frame = self._group(transforms_tab, "Geometric Transforms")
-        self.angle = tk.StringVar(value="15")
-        self.shear_x = tk.StringVar(value="0.2")
-        self.shear_y = tk.StringVar(value="0.0")
-        self._labeled_entry(transform_frame, "Rotation angle", self.angle)
-        ttk.Button(transform_frame, text="Rotate", command=self.apply_rotation).pack(fill="x", pady=(8, 10))
-        self._labeled_entry(transform_frame, "Shear X", self.shear_x)
-        self._labeled_entry(transform_frame, "Shear Y", self.shear_y)
-        ttk.Button(transform_frame, text="Shear", command=self.apply_shear).pack(fill="x", pady=(8, 0))
 
         metadata_frame = self._group(info_tab, "Metadata")
         self.metadata_text = tk.Text(metadata_frame, width=34, height=13, wrap="word", relief="flat", bg="#f5f8fb", fg=self.colors["text"], insertbackground=self.colors["text"])
@@ -366,19 +355,6 @@ class WorkbenchApp(tk.Tk):
         self.apply_operation(
             "Local histogram equalization",
             lambda img: local_histogram_equalization(img, self.int_value(self.block_size, "Block size")),
-        )
-
-    def apply_rotation(self):
-        self.apply_operation("Rotation", lambda img: rotate(img, self.float_value(self.angle, "Angle")))
-
-    def apply_shear(self):
-        self.apply_operation(
-            "Shear",
-            lambda img: shear(
-                img,
-                self.float_value(self.shear_x, "Shear X"),
-                self.float_value(self.shear_y, "Shear Y"),
-            ),
         )
 
     def undo(self):

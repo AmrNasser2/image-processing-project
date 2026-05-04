@@ -21,8 +21,9 @@ def gaussian_kernel(size, variance):
     for y in range(-radius, radius + 1):
         for x in range(-radius, radius + 1):
             kernel[y + radius, x + radius] = math.exp(-(x * x + y * y) / (2.0 * variance))
-    total = np.sum(kernel)
-    return kernel / total
+
+    domain = 2.0 * math.pi * variance
+    return kernel / domain
 
 
 def average_filter(image, size):
