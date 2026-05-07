@@ -81,3 +81,35 @@ def local_histogram_equalization(image, block_size):
     result = blend * enhanced_full + (1.0 - blend) * gray.astype(np.float64)
 
     return np.clip(result, 0, 255).astype(np.uint8)
+def global_histogram_equalization(image):
+    """
+    Applies standard global histogram equalization to the entire image.
+    """
+    # 1. Convert to grayscale 8-bit image
+    gray = normalize_to_uint8(to_grayscale_float(image))
+    total_pixels = gray.size
+
+    # 2. Calculate the histogram from scratch
+    hist = np.zeros(256, dtype=np.float64)
+    for value in gray.reshape(-1):
+        hist[int(value)] += 1
+
+    # 3. Calculate the Cumulative Distribution Function (CDF)
+    cdf = np.cumsum(hist)
+    
+    # 4. Find the minimum non-zero CDF value
+    nonzero = cdf[cdf > 0]
+    if len(nonzero) == 0:
+        return gray.copy()
+    cdf_min = nonzero[0]
+
+    # Handle edge case where image is a single solid color
+    if total_pixels == cdf_min:
+        return gray.copy()
+
+    # 5. Create the equalization lookup table
+    lookup = np.round((cdf - cdf_min) * 255 / (total_pixels - cdf_min))
+    lookup = np.clip(lookup, 0, 255).astype(np.uint8)
+
+    # 6. Map the original image to the equalized values
+    return lookup[gray]

@@ -13,18 +13,29 @@ def _sample_nearest(image, y, x):
 
 def _sample_bilinear(image, y, x):
     h, w = image.shape[:2]
+
     y = min(max(float(y), 0.0), h - 1.0)
     x = min(max(float(x), 0.0), w - 1.0)
+
     y0 = int(math.floor(y))
     x0 = int(math.floor(x))
     y1 = min(y0 + 1, h - 1)
     x1 = min(x0 + 1, w - 1)
-    wy = y - y0
-    wx = x - x0
 
-    top = (1.0 - wx) * image[y0, x0].astype(np.float64) + wx * image[y0, x1].astype(np.float64)
-    bottom = (1.0 - wx) * image[y1, x0].astype(np.float64) + wx * image[y1, x1].astype(np.float64)
-    return (1.0 - wy) * top + wy * bottom
+    dx = x - x0
+    dy = y - y0
+
+    v00 = image[y0, x0].astype(np.float64)
+    v10 = image[y0, x1].astype(np.float64)
+    v01 = image[y1, x0].astype(np.float64)
+    v11 = image[y1, x1].astype(np.float64)
+
+    d = v00
+    a = v10 - v00
+    b = v01 - v00
+    c = v11 - v10 - v01 + v00
+
+    return a * dx + b * dy + c * dx * dy + d
 
 
 def resize(image, scale, method="bilinear"):
