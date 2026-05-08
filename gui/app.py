@@ -8,11 +8,11 @@ import threading
 from datetime import datetime
 
 # Core imports strictly matching your project structure
-from core import frequency, noise, roi
+from core import frequency, morphology, noise, roi
 from core import filters
 from core.histogram import local_histogram_equalization, global_histogram_equalization
 from core.image_io import load_image, save_image
-from core.interpolation import resize
+from core.interpolation import resize, rotate, shear
 from core.pipeline import ImagePipeline
 from core.utils import display_ready
 
@@ -52,6 +52,10 @@ class WorkbenchApp(ctk.CTk):
         self.noise_type = ctk.StringVar(value="Gaussian")
         self.noise_mean = ctk.StringVar(value="0")
         self.noise_variance = ctk.StringVar(value="100")
+        self.threshold_value = ctk.IntVar(value=128)
+        self.threshold_label = ctk.StringVar(value="Threshold: 128")
+        self.morph_size = ctk.StringVar(value="3")
+        self.morph_shape = ctk.StringVar(value="square")
         
         self._build_ui()
 
@@ -253,6 +257,26 @@ class WorkbenchApp(ctk.CTk):
         ctk.CTkButton(sidebar, text="Draw ROI on Processed", fg_color="transparent", border_width=1, command=self.activate_roi_tool).pack(fill="x", padx=10, pady=5)
         ctk.CTkButton(sidebar, text="Crop Template", fg_color="transparent", border_width=1, command=self.activate_template_tool).pack(fill="x", padx=10, pady=2)
         ctk.CTkButton(sidebar, text="Find Template", fg_color="transparent", border_width=1, command=self.apply_template_match).pack(fill="x", padx=10, pady=2)
+
+        ctk.CTkFrame(sidebar, height=1, fg_color="#374151").pack(fill="x", padx=10, pady=10)
+        ctk.CTkLabel(sidebar, text="BONUS MORPHOLOGY", font=ctk.CTkFont(weight="bold", size=11), text_color="#3B82F6").pack(anchor="w", padx=10, pady=(5, 5))
+
+        ctk.CTkLabel(sidebar, textvariable=self.threshold_label, text_color="#D1D5DB").pack(anchor="w", padx=10, pady=(0, 2))
+        ctk.CTkSlider(sidebar, from_=0, to=255, number_of_steps=255, variable=self.threshold_value, command=self._on_threshold_change).pack(fill="x", padx=10, pady=5)
+        ctk.CTkButton(sidebar, text="Binarize Image", fg_color="#374151", hover_color="#4B5563", command=self.apply_threshold).pack(fill="x", padx=10, pady=2)
+
+        morph_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
+        morph_frame.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(morph_frame, text="SE size:").grid(row=0, column=0, sticky="w", pady=2)
+        ctk.CTkEntry(morph_frame, textvariable=self.morph_size, width=60, height=25).grid(row=0, column=1, padx=5, pady=2, sticky="e")
+        ctk.CTkLabel(morph_frame, text="SE shape:").grid(row=1, column=0, sticky="w", pady=2)
+        ctk.CTkOptionMenu(morph_frame, values=["square", "cross"], variable=self.morph_shape, width=120, height=25, fg_color="#374151", button_color="#4B5563").grid(row=1, column=1, padx=5, pady=2, sticky="e")
+
+        ctk.CTkButton(sidebar, text="Erosion", fg_color="#374151", hover_color="#4B5563", command=lambda: self.apply_morphology("erosion")).pack(fill="x", padx=10, pady=2)
+        ctk.CTkButton(sidebar, text="Dilation", fg_color="#374151", hover_color="#4B5563", command=lambda: self.apply_morphology("dilation")).pack(fill="x", padx=10, pady=2)
+        ctk.CTkButton(sidebar, text="Opening", fg_color="#374151", hover_color="#4B5563", command=lambda: self.apply_morphology("opening")).pack(fill="x", padx=10, pady=2)
+        ctk.CTkButton(sidebar, text="Closing", fg_color="#374151", hover_color="#4B5563", command=lambda: self.apply_morphology("closing")).pack(fill="x", padx=10, pady=2)
+        ctk.CTkButton(sidebar, text="Boundary Extraction", fg_color="transparent", border_width=1, command=lambda: self.apply_morphology("boundary")).pack(fill="x", padx=10, pady=(2, 10))
 
     def _build_viewers(self):
         self.viewers_frame = ctk.CTkFrame(self.main_container, fg_color="#111318", corner_radius=0)
@@ -566,6 +590,40 @@ class WorkbenchApp(ctk.CTk):
         self._draw_box_on_processed(self.match_box, "#10B981", "match_box")
         self._draw_histogram(self.hist_proc_canvas, self._calculate_histogram(corr), color="#F59E0B")
         self.status.set(f"Template match found at x={x}, y={y}.")
+
+    def _on_threshold_change(self, value):
+        self.threshold_label.set(f"Threshold: {int(float(value))}")
+
+    def _read_morphology_size(self):
+        try:
+            size = int(self.morph_size.get())
+        except ValueError:
+            messagebox.showerror("Wrong Structuring Element", "Structuring element size must be an odd integer of 3 or larger.")
+            return None
+
+        if size < 3 or size % 2 == 0:
+            messagebox.showerror("Wrong Structuring Element", "Structuring element size must be odd and at least 3.")
+            return None
+        return size
+
+    def apply_threshold(self):
+        threshold = int(self.threshold_value.get())
+        self.apply_operation(f"Binary Threshold (t={threshold})", lambda img: morphology.threshold_binary(img, threshold))
+
+    def apply_morphology(self, operation):
+        size = self._read_morphology_size()
+        if size is None: return
+
+        shape = self.morph_shape.get()
+        operations = {
+            "erosion": ("Erosion", morphology.erode),
+            "dilation": ("Dilation", morphology.dilate),
+            "opening": ("Opening", morphology.opening),
+            "closing": ("Closing", morphology.closing),
+            "boundary": ("Boundary Extraction", morphology.boundary_extraction),
+        }
+        title, func = operations[operation]
+        self.apply_operation(f"{title} ({shape}, {size}x{size})", lambda img: func(img, size, shape))
 
     def apply_operation(self, name, func):
         image = self.require_image()
